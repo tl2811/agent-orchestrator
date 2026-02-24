@@ -470,13 +470,19 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
     });
 
     // Get agent launch config and create runtime — clean up workspace on failure
+        // Don't pass Claude model to non-Claude agents (e.g. Codex can't use claude-sonnet-4-6)
+    const agentModel = plugins.agent.name !== "claude-code" && 
+      project.agentConfig?.model?.startsWith("claude-") 
+        ? undefined 
+        : project.agentConfig?.model;
+
     const agentLaunchConfig = {
       sessionId,
       projectConfig: project,
       issueId: spawnConfig.issueId,
       prompt: composedPrompt ?? spawnConfig.prompt,
       permissions: project.agentConfig?.permissions,
-      model: project.agentConfig?.model,
+      model: agentModel,
     };
 
     let handle: RuntimeHandle;
@@ -639,7 +645,7 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
       sessionId,
       projectConfig: project,
       permissions: "skip" as const,
-      model: project.agentConfig?.model,
+      model: plugins.agent.name !== "claude-code" && project.agentConfig?.model?.startsWith("claude-") ? undefined : project.agentConfig?.model,
       systemPromptFile,
     };
 
@@ -1092,7 +1098,7 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
       projectConfig: project,
       issueId: session.issueId ?? undefined,
       permissions: project.agentConfig?.permissions,
-      model: project.agentConfig?.model,
+      model: plugins.agent.name !== "claude-code" && project.agentConfig?.model?.startsWith("claude-") ? undefined : project.agentConfig?.model,
     };
 
     if (plugins.agent.getRestoreCommand) {
