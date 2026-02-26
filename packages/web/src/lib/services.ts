@@ -24,10 +24,11 @@ import {
 // Static plugin imports — webpack needs these to be string literals
 import pluginRuntimeTmux from "@composio/ao-plugin-runtime-tmux";
 import pluginAgentClaudeCode from "@composio/ao-plugin-agent-claude-code";
+import pluginAgentCodex from "@composio/ao-plugin-agent-codex";
 import pluginWorkspaceWorktree from "@composio/ao-plugin-workspace-worktree";
 import pluginScmGithub from "@composio/ao-plugin-scm-github";
 import pluginTrackerGithub from "@composio/ao-plugin-tracker-github";
-import pluginTrackerLinear from "@composio/ao-plugin-tracker-linear";
+// import pluginTrackerLinear from "@composio/ao-plugin-tracker-linear"; // disabled: @composio/core not installed
 
 export interface Services {
   config: OrchestratorConfig;
@@ -64,10 +65,11 @@ async function initServices(): Promise<Services> {
   // Register plugins explicitly (webpack can't handle dynamic import() in core)
   registry.register(pluginRuntimeTmux);
   registry.register(pluginAgentClaudeCode);
+  registry.register(pluginAgentCodex);
   registry.register(pluginWorkspaceWorktree);
   registry.register(pluginScmGithub);
   registry.register(pluginTrackerGithub);
-  registry.register(pluginTrackerLinear);
+  // registry.register(pluginTrackerLinear); // disabled: @composio/core not installed
 
   const sessionManager = createSessionManager({ config, registry });
 
