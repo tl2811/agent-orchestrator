@@ -11,6 +11,8 @@ interface ReviewInfo {
   prNumber: string;
   pendingComments: number;
   reviewDecision: string | null;
+  isAgentDead: boolean;
+  agentType: string | null;
 }
 
 async function checkPRReviews(
@@ -91,12 +93,15 @@ export function registerReviewCheck(program: Command): void {
         try {
           const { pendingComments, reviewDecision } = await checkPRReviews(project.repo, prNum);
           if (pendingComments > 0 || reviewDecision === "CHANGES_REQUESTED") {
+            const isAgentDead = session.activity === "exited" || (session.activity as string) === "crashed";
             results.push({
               sessionId: session.id,
               tmuxTarget: session.runtimeHandle?.id ?? session.id,
               prNumber: prNum,
               pendingComments,
               reviewDecision,
+              isAgentDead,
+              agentType: session.metadata["agent"] ?? null,
             });
           }
         } catch {
@@ -128,6 +133,27 @@ export function registerReviewCheck(program: Command): void {
 
         if (!opts.dryRun) {
           try {
+            // If agent is dead, restore it first
+            if (result.isAgentDead) {
+              console.log(chalk.yellow(`    Agent exited — restoring session...`));
+              await sm.restore(result.sessionId);
+              console.log(chalk.green(`    -> Session restored`));
+
+              // Claude Code resumes with full history via --resume, no send needed
+              if (result.agentType === "claude-code") {
+                console.log(chalk.green(`    -> Claude Code will resume with context`));
+                continue;
+              }
+
+              // For other agents (Codex), wait for boot before sending
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+              // Refresh tmux target after restore
+              const restored = (await sm.list()).find((s) => s.id === result.sessionId);
+              if (restored?.runtimeHandle?.id) {
+                result.tmuxTarget = restored.runtimeHandle.id;
+              }
+            }
+
             // Interrupt busy agent and clear partial input before sending
             await exec("tmux", ["send-keys", "-t", result.tmuxTarget, "C-c"]);
             await new Promise((resolve) => setTimeout(resolve, 500));
