@@ -119,6 +119,16 @@ describe("tracker-github plugin", () => {
       expect(issue.assignee).toBeUndefined();
     });
 
+    it("accepts issue- prefix and strips it before gh call", async () => {
+      mockGh(sampleIssue);
+      await tracker.getIssue("issue-123", project);
+      expect(ghMock).toHaveBeenCalledWith(
+        "gh",
+        expect.arrayContaining(["view", "123"]),
+        expect.any(Object),
+      );
+    });
+
     it("propagates gh CLI errors", async () => {
       mockGhError("issue not found");
       await expect(tracker.getIssue("999", project)).rejects.toThrow("issue not found");
@@ -159,17 +169,31 @@ describe("tracker-github plugin", () => {
     it("strips # prefix from identifier", () => {
       expect(tracker.issueUrl("#42", project)).toBe("https://github.com/acme/repo/issues/42");
     });
+
+    it("strips issue- prefix from identifier", () => {
+      expect(tracker.issueUrl("issue-42", project)).toBe(
+        "https://github.com/acme/repo/issues/42",
+      );
+    });
   });
 
   // ---- branchName --------------------------------------------------------
 
   describe("branchName", () => {
-    it("generates feat/issue-N format", () => {
-      expect(tracker.branchName("42", project)).toBe("feat/issue-42");
+    it("generates feat/N format for bare number", () => {
+      expect(tracker.branchName("42", project)).toBe("feat/42");
     });
 
     it("strips # prefix", () => {
-      expect(tracker.branchName("#42", project)).toBe("feat/issue-42");
+      expect(tracker.branchName("#42", project)).toBe("feat/42");
+    });
+
+    it("strips issue- prefix", () => {
+      expect(tracker.branchName("issue-42", project)).toBe("feat/42");
+    });
+
+    it("strips issue- prefix case-insensitively", () => {
+      expect(tracker.branchName("Issue-42", project)).toBe("feat/42");
     });
   });
 

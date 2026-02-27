@@ -36,6 +36,13 @@ async function gh(args: string[]): Promise<string> {
   }
 }
 
+/** Normalize a GitHub issue identifier to a bare number string.
+ * Accepts: "376", "#376", "issue-376" → "376"
+ */
+function normalizeIdentifier(identifier: string): string {
+  return identifier.replace(/^#/, "").replace(/^issue-/i, "");
+}
+
 function mapState(ghState: string, stateReason?: string | null): Issue["state"] {
   const s = ghState.toUpperCase();
   if (s === "CLOSED") {
@@ -57,7 +64,7 @@ function createGitHubTracker(): Tracker {
       const raw = await gh([
         "issue",
         "view",
-        identifier,
+        normalizeIdentifier(identifier),
         "--repo",
         project.repo,
         "--json",
@@ -90,7 +97,7 @@ function createGitHubTracker(): Tracker {
       const raw = await gh([
         "issue",
         "view",
-        identifier,
+        normalizeIdentifier(identifier),
         "--repo",
         project.repo,
         "--json",
@@ -101,7 +108,7 @@ function createGitHubTracker(): Tracker {
     },
 
     issueUrl(identifier: string, project: ProjectConfig): string {
-      const num = identifier.replace(/^#/, "");
+      const num = normalizeIdentifier(identifier);
       return `https://github.com/${project.repo}/issues/${num}`;
     },
 
@@ -119,7 +126,7 @@ function createGitHubTracker(): Tracker {
     },
 
     branchName(identifier: string, _project: ProjectConfig): string {
-      const num = identifier.replace(/^#/, "");
+      const num = normalizeIdentifier(identifier);
       return `feat/${num}`;
     },
 
@@ -203,12 +210,13 @@ function createGitHubTracker(): Tracker {
       update: IssueUpdate,
       project: ProjectConfig,
     ): Promise<void> {
+      const num = normalizeIdentifier(identifier);
       // Handle state change — GitHub Issues only supports open/closed.
       // "in_progress" is not a GitHub state, so it is intentionally a no-op.
       if (update.state === "closed") {
-        await gh(["issue", "close", identifier, "--repo", project.repo]);
+        await gh(["issue", "close", num, "--repo", project.repo]);
       } else if (update.state === "open") {
-        await gh(["issue", "reopen", identifier, "--repo", project.repo]);
+        await gh(["issue", "reopen", num, "--repo", project.repo]);
       }
 
       // Handle label changes
@@ -216,7 +224,7 @@ function createGitHubTracker(): Tracker {
         await gh([
           "issue",
           "edit",
-          identifier,
+          num,
           "--repo",
           project.repo,
           "--add-label",
@@ -229,7 +237,7 @@ function createGitHubTracker(): Tracker {
         await gh([
           "issue",
           "edit",
-          identifier,
+          num,
           "--repo",
           project.repo,
           "--add-assignee",
@@ -242,7 +250,7 @@ function createGitHubTracker(): Tracker {
         await gh([
           "issue",
           "comment",
-          identifier,
+          num,
           "--repo",
           project.repo,
           "--body",
