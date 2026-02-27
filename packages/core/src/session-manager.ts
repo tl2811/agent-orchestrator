@@ -134,7 +134,7 @@ function metadataToSession(
           return {
             number: ghMatch
               ? parseInt(ghMatch[3], 10)
-              : parseInt(prUrl.match(/\/(\d+)$/)?.[1] ?? "0", 10),
+              : parseInt(prUrl.match(/\/(\d+)$/)?.[1] ?? prUrl, 10) || 0,
             url: prUrl,
             title: "",
             owner: ghMatch?.[1] ?? "",
