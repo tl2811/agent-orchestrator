@@ -56,6 +56,9 @@ import {
   validateAndStoreOrigin,
 } from "./paths.js";
 
+const POST_LAUNCH_READY_TIMEOUT_MS = 60_000;
+const POST_LAUNCH_READY_POLL_MS = 1_000;
+
 /** Escape regex metacharacters in a string. */
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -165,6 +168,42 @@ export interface SessionManagerDeps {
 /** Create a SessionManager instance. */
 export function createSessionManager(deps: SessionManagerDeps): SessionManager {
   const { config, registry } = deps;
+
+  async function waitForPostLaunchPromptReadiness(
+    session: Session,
+    runtime: Runtime,
+    agent: Agent,
+  ): Promise<boolean> {
+    if (!session.runtimeHandle) return false;
+
+    const deadline = Date.now() + POST_LAUNCH_READY_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+      const output = await runtime.getOutput(session.runtimeHandle, 20).catch(() => "");
+      if (output.trim()) {
+        const activity = agent.detectActivity(output);
+        if (activity === "idle" || activity === "ready") {
+          return true;
+        }
+        if (
+          activity === "waiting_input" ||
+          activity === "blocked" ||
+          activity === "exited"
+        ) {
+          return false;
+        }
+      }
+
+      const runtimeAlive = await runtime.isAlive(session.runtimeHandle).catch(() => true);
+      if (!runtimeAlive) {
+        return false;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, POST_LAUNCH_READY_POLL_MS));
+    }
+
+    return false;
+  }
 
   /**
    * Get the sessions directory for a project.
@@ -580,9 +619,14 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
     // should NOT destroy the session. The agent is running; user can retry with `ao send`.
     if (plugins.agent.promptDelivery === "post-launch" && agentLaunchConfig.prompt) {
       try {
-        // Wait for agent to start and be ready for input
-        await new Promise((resolve) => setTimeout(resolve, 5_000));
-        await plugins.runtime.sendMessage(handle, agentLaunchConfig.prompt);
+        const ready = await waitForPostLaunchPromptReadiness(
+          session,
+          plugins.runtime,
+          plugins.agent,
+        );
+        if (ready) {
+          await plugins.runtime.sendMessage(handle, agentLaunchConfig.prompt);
+        }
       } catch {
         // Non-fatal: agent is running but didn't receive the initial prompt.
         // User can retry with `ao send`.
